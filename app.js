@@ -37,9 +37,15 @@ const { initR2 } = require('./utils/r2');
 const notificationModel = require('./models/notificationModel');
 
 const app = express();
-// CORS
-app.use(cors({ origin: '*', methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'] }));
-// Body parsing: JSON, urlencoded, and text (to accept raw JSON sent as text/plain)
+// CORS - allow all origins (no credential support)
+app.use(cors({
+	origin: '*',
+	methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+	allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+// Handle preflight for all routes
+app.options('*', cors());
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.text({ type: 'text/*' }));
