@@ -6,8 +6,8 @@ const table = 'services';
 async function create(service) {
   const service_id = service.serviceId || generateId(12);
   const { rows } = await pool.query(
-    `INSERT INTO ${table} (service_id, service_title, short_description, duration_meeting, service_charge, more_details_section, what_booking_includes, user_registered, published, button_content)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    `INSERT INTO ${table} (service_id, service_title, short_description, duration_meeting, service_charge, more_details_section, what_booking_includes, user_registered, published, button_content, mostpopular)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
     [
       service_id,
       service.serviceTitle,
@@ -19,6 +19,7 @@ async function create(service) {
       service.userRegistered || 0,
       service.published === true,
       service.buttonContent || null,
+      service.mostpopular === true,
     ]
   );
   return rows[0];
@@ -31,7 +32,7 @@ async function update(id, payload) {
   const mapping = {
     serviceTitle: 'service_title', shortDescription: 'short_description', durationMeeting: 'duration_meeting', serviceCharge: 'service_charge',
     moreDetailsSection: 'more_details_section', whatBookingIncludes: 'what_booking_includes', userRegistered: 'user_registered', published: 'published',
-    buttonContent: 'button_content'
+    buttonContent: 'button_content', mostpopular: 'mostpopular'
   };
   const fields = []; const values = []; let i = 1;
   for (const k of Object.keys(mapping)) if (payload[k] !== undefined) {

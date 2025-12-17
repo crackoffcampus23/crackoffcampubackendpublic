@@ -12,4 +12,8 @@ router.get('/service/:serviceid', auth, ctrl.getOne);
 router.put('/service/:serviceid/edit', auth, requireAdmin, ctrl.update);
 router.delete('/service/:serviceid/delete', auth, requireAdmin, ctrl.remove);
 
+// Most popular flag (admin-only)
+router.get('/service/:serviceid/mostpopular', auth, requireAdmin, ctrl.getMostPopularStatus);
+router.put('/service/:serviceid/mostpopular', auth, requireAdmin, ctrl.updateMostPopular);
+
 module.exports = router;

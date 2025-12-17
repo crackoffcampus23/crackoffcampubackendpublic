@@ -12,7 +12,8 @@ const mapping = {
   whatBookingIncludes: 'what_booking_includes',
   userRegistered: 'user_registered',
   published: 'published',
-  buttonContent: 'button_content'
+  buttonContent: 'button_content',
+  mostpopular: 'mostpopular',
 };
 
 const base = makeController(services, 'serviceid', mapping);
@@ -31,6 +32,36 @@ async function getUserServices(req, res) {
 }
 async function getAdminServices(req, res) {
   try { const rows = await services.listAll(); res.json({ items: rows.map(sanitize) }); } catch (e) { console.error('getAdminServices error', e); res.status(500).json({ error: 'Internal server error' }); }
+}
+
+async function getMostPopularStatus(req, res) {
+  try {
+    const id = req.params.serviceid;
+    const row = await services.get(id);
+    if (!row) return res.status(404).json({ error: 'Service not found' });
+    const item = sanitize(row);
+    res.json({ mostpopular: !!item.mostpopular });
+  } catch (e) {
+    console.error('getMostPopularStatus error', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function updateMostPopular(req, res) {
+  try {
+    const id = req.params.serviceid;
+    const { mostpopular } = req.body || {};
+    if (typeof mostpopular !== 'boolean') {
+      return res.status(400).json({ error: 'mostpopular must be boolean' });
+    }
+    const updated = await services.update(id, { mostpopular });
+    if (!updated) return res.status(404).json({ error: 'Service not found' });
+    const item = sanitize(updated);
+    res.json({ mostpopular: !!item.mostpopular, item });
+  } catch (e) {
+    console.error('updateMostPopular error', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 }
 
 // Override add to create notification when a new service is added
@@ -61,4 +92,4 @@ async function add(req, res) {
   }
 }
 
-module.exports = { ...base, add, getUserServices, getAdminServices };
+module.exports = { ...base, add, getUserServices, getAdminServices, getMostPopularStatus, updateMostPopular };
