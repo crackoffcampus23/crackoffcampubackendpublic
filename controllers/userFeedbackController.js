@@ -9,6 +9,7 @@ function sanitize(row) {
     proofUrl: row.proof_url,
     feedbackType: row.feedback_type,
     message: row.message,
+    profileUrl: row.profile_url,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -16,11 +17,11 @@ function sanitize(row) {
 
 async function submitFeedback(req, res) {
   try {
-    const { name, phonenumber, proofUrl, feedbackType, message } = req.body || {};
+    const { name, phonenumber, proofUrl, feedbackType, message, profileUrl } = req.body || {};
     if (!message) {
       return res.status(400).json({ error: 'message is required' });
     }
-    const created = await create({ name, phonenumber, proofUrl, feedbackType, message });
+    const created = await create({ name, phonenumber, proofUrl, feedbackType, message, profileUrl });
     return res.status(201).json({ item: sanitize(created) });
   } catch (e) {
     console.error('userFeedback.submitFeedback error:', e);
