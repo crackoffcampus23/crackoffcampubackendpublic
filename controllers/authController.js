@@ -128,26 +128,59 @@ async function signup(req, res) {
 }
 
 async function login(req, res) {
-  try {
+  // Generate a per-request ID for easier debugging across logs
+  const requestId = (crypto.randomUUID && crypto.randomUUID()) || generateId();
+
   const body = req.body || {};
   const signinwithgoogle = toBool(body.signinwithgoogle);
   const email = str(body.email);
   const password = body.password != null ? String(body.password) : undefined;
   const googleIdToken = str(body.googleIdToken);
 
+  const safeBody = {
+    signinwithgoogle,
+    email,
+    hasPassword: !!password,
+    hasGoogleIdToken: !!googleIdToken,
+  };
+
+  const meta = {
+    requestId,
+    ip: req.ip,
+    method: req.method,
+    path: req.originalUrl || req.url,
+    userAgent: req.headers['user-agent'],
+  };
+
+  console.log('Login request received', { ...meta, body: safeBody });
+
+  try {
     if (signinwithgoogle) {
-      if (!googleIdToken) return res.status(400).json({ error: 'googleIdToken is required when signinwithgoogle=true' });
+      if (!googleIdToken) {
+        console.warn('Login google: missing googleIdToken', { ...meta, body: safeBody });
+        return res.status(400).json({ error: 'googleIdToken is required when signinwithgoogle=true' });
+      }
+
+      console.log('Login google: starting token verification', { ...meta, body: safeBody });
+
       // 1) Try Firebase Admin verification first
       ensureFirebase();
       let decoded = null;
       if (firebaseInitialized) {
         try {
           decoded = await admin.auth().verifyIdToken(googleIdToken);
+          console.log('Login google: Firebase verifyIdToken success', {
+            ...meta,
+            hasEmail: !!decoded?.email,
+          });
         } catch (e) {
-          console.warn('Firebase verifyIdToken failed, falling back to Google OAuth:', e.message);
+          console.warn('Login google: Firebase verifyIdToken failed, falling back to Google OAuth', {
+            ...meta,
+            errorMessage: e.message,
+          });
         }
       } else {
-        console.warn('Firebase not initialized; skipping Firebase token verification');
+        console.warn('Login google: Firebase not initialized; skipping Firebase token verification', meta);
       }
 
       // 2) If Firebase failed or returned no email, try Google OAuth library
@@ -156,33 +189,96 @@ async function login(req, res) {
           const payload = await verifyGoogleIdTokenWithGoogleLibrary(googleIdToken);
           if (payload) {
             decoded = payload;
+            console.log('Login google: Google OAuth verifyIdToken success', {
+              ...meta,
+              hasEmail: !!decoded.email,
+            });
+          } else {
+            console.warn('Login google: Google OAuth verifyIdToken returned no payload', meta);
           }
         } catch (e) {
-          console.warn('Google OAuth verifyIdToken failed:', e.message);
+          console.warn('Login google: Google OAuth verifyIdToken failed', {
+            ...meta,
+            errorMessage: e.message,
+          });
         }
       }
 
       if (!decoded || !decoded.email) {
+        console.warn('Login google: token could not be verified (no email)', {
+          ...meta,
+          body: safeBody,
+        });
         return res.status(401).json({ error: 'Google token could not be verified' });
       }
 
       const googleEmail = decoded.email;
+      console.log('Login google: token verified, looking up user', {
+        ...meta,
+        googleEmail,
+      });
+
       const user = await findByEmail(googleEmail);
-      if (!user) return res.status(404).json({ error: 'Account not found, please signup first' });
+      if (!user) {
+        console.warn('Login google: user not found for email', {
+          ...meta,
+          googleEmail,
+        });
+        return res.status(404).json({ error: 'Account not found, please signup first' });
+      }
+
       const token = signToken(user);
+      console.log('Login google: success', {
+        ...meta,
+        userId: user.user_id,
+      });
       return res.json({ token, user: sanitize(user) });
     }
 
-    if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+    if (!email || !password) {
+      console.warn('Login password: missing email or password', { ...meta, body: safeBody });
+      return res.status(400).json({ error: 'email and password required' });
+    }
+
+    console.log('Login password: looking up user', { ...meta, email });
     const user = await findByEmail(email);
-    if (!user || !user.password_hash) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!user || !user.password_hash) {
+      console.warn('Login password: user not found or no password hash', {
+        ...meta,
+        hasUser: !!user,
+        hasPasswordHash: !!user?.password_hash,
+      });
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
     const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!match) {
+      console.warn('Login password: password mismatch', { ...meta, userId: user.user_id });
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
     const token = signToken(user);
-    res.json({ token, user: sanitize(user) });
+    console.log('Login password: success', { ...meta, userId: user.user_id });
+    return res.json({ token, user: sanitize(user) });
   } catch (err) {
-    console.error('Login error', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Login error', {
+      ...meta,
+      body: safeBody,
+      errorMessage: err.message,
+      name: err.name,
+      stack: err.stack,
+    });
+
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd) {
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+
+    return res.status(500).json({
+      error: 'Login failed',
+      detail: err.message,
+      requestId,
+    });
   }
 }
 
