@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const admin = require('firebase-admin');
+const { OAuth2Client } = require('google-auth-library');
 const { generateId } = require('../utils/idGenerator');
 const { findByEmail, createUser } = require('../models/userModel');
 const { findByEmail: findAdminByEmail, createAdmin, deleteByEmail: deleteAdminByEmail, updatePasswordByEmail, listAdmins } = require('../models/adminAuthModel');
@@ -40,6 +41,34 @@ function ensureFirebase() {
   } catch (e) {
     console.warn('Firebase admin init failed (Google auth will not work):', e.message);
   }
+}
+
+// Lazy-initialized Google OAuth client for verifying ID tokens when Firebase fails
+let googleClient = null;
+function ensureGoogleClient() {
+  if (googleClient) return;
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    console.warn('GOOGLE_CLIENT_ID not set; Google OAuth verification will be skipped');
+    return;
+  }
+  googleClient = new OAuth2Client(clientId);
+}
+
+async function verifyGoogleIdTokenWithGoogleLibrary(idToken) {
+  ensureGoogleClient();
+  if (!googleClient) return null;
+  const ticket = await googleClient.verifyIdToken({
+    idToken,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+  const payload = ticket.getPayload();
+  if (!payload || !payload.email) return null;
+  return {
+    email: payload.email,
+    name: payload.name,
+    picture: payload.picture,
+  };
 }
 
 function signToken(user) {
@@ -108,11 +137,36 @@ async function login(req, res) {
 
     if (signinwithgoogle) {
       if (!googleIdToken) return res.status(400).json({ error: 'googleIdToken is required when signinwithgoogle=true' });
+      // 1) Try Firebase Admin verification first
       ensureFirebase();
-      if (!firebaseInitialized) return res.status(500).json({ error: 'Google auth not configured' });
-      const decoded = await admin.auth().verifyIdToken(googleIdToken);
+      let decoded = null;
+      if (firebaseInitialized) {
+        try {
+          decoded = await admin.auth().verifyIdToken(googleIdToken);
+        } catch (e) {
+          console.warn('Firebase verifyIdToken failed, falling back to Google OAuth:', e.message);
+        }
+      } else {
+        console.warn('Firebase not initialized; skipping Firebase token verification');
+      }
+
+      // 2) If Firebase failed or returned no email, try Google OAuth library
+      if (!decoded || !decoded.email) {
+        try {
+          const payload = await verifyGoogleIdTokenWithGoogleLibrary(googleIdToken);
+          if (payload) {
+            decoded = payload;
+          }
+        } catch (e) {
+          console.warn('Google OAuth verifyIdToken failed:', e.message);
+        }
+      }
+
+      if (!decoded || !decoded.email) {
+        return res.status(401).json({ error: 'Google token could not be verified' });
+      }
+
       const googleEmail = decoded.email;
-      if (!googleEmail) return res.status(400).json({ error: 'No email in Google token' });
       const user = await findByEmail(googleEmail);
       if (!user) return res.status(404).json({ error: 'Account not found, please signup first' });
       const token = signToken(user);
