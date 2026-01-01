@@ -28,6 +28,11 @@ async function ensureTable() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_notifications_global ON ${table}(user_id) WHERE user_id IS NULL
   `);
+  
+    // Ensure meta column exists on existing tables
+    await pool.query(`
+      ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS meta JSONB
+    `);
 }
 
 // Create a notification for a specific user or all users (user_id = null for global)
@@ -35,14 +40,15 @@ async function create(notification) {
   const notification_id = generateId(12);
   const { rows } = await pool.query(
     `INSERT INTO ${table} (
-      notification_id, user_id, type, title, message, reference_id, read
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      notification_id, user_id, type, title, message, meta, reference_id, read
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
     [
       notification_id,
       notification.userId || null, // null means global notification for all users
       notification.type,
       notification.title,
       notification.message || null,
+      notification.meta || null,
       notification.referenceId || null,
       false
     ]

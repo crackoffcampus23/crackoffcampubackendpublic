@@ -87,6 +87,7 @@ module.exports.add = async (req, res) => {
           type: notificationType,
           title: notificationTitle,
           message: notificationMessage,
+          meta: item,
           referenceId: item.jobId
         });
       } catch (notifError) {
