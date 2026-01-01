@@ -131,7 +131,7 @@ async function verifyService(req, res) {
       </div>
     `;
 
-    const adminSubject = 'New slot booked';
+    const adminSubject = 'New Slot Booked';
     const adminText = `Dear Admin,\n\nA new slot has been booked by ${name} (${email}) for ${prettyServiceName} on ${slotDate || '—'} at ${slotTime || '—'}.\n\nRegards,\nTeam Crack Off-Campus`;
     const adminHtml = `
       <div style="font-family:Arial, sans-serif; max-width:600px; margin:0 auto;">
