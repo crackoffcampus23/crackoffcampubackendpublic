@@ -159,6 +159,11 @@ function transformNotification(row) {
     title: row.title,
     message: row.message,
     referenceId: row.reference_id,
+    // include raw meta payload (jobs use this to pass job details)
+    meta: row.meta || null,
+    // for convenience expose common job-related fields at top-level
+    experience: row.meta && row.meta.experience ? row.meta.experience : null,
+    location: row.meta && row.meta.location ? row.meta.location : null,
     read: row.read,
     createdAt: row.created_at,
     updatedAt: row.updated_at

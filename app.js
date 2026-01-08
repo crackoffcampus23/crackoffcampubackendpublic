@@ -123,7 +123,7 @@ app.use('/', hackathonsRoutes); // hackathons endpoints
 app.use('/', bannerRoutes); // banner images endpoints
 app.use('/', userFeedbackRoutes); // user feedback endpoints
 app.use('/', premiumPdfRoutes); // premium pdf list + bulk delete
-app.use('/', cronRoutes); // secured daily cron endpoints
+app.use('/cron', cronRoutes); // secured daily cron endpoints
 app.use('/notifications', notificationRoutes); // notification endpoints
 
 // Not found handler

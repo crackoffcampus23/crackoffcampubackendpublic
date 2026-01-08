@@ -28,12 +28,28 @@ const sendEmail = async ({ to, subject, text, html, replyTo }) => {
       throw new Error('Email transporter not configured properly');
     }
 
+    // convert plain text to safe HTML with preserved line breaks when html not provided
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
+    const textToHtml = (txt) => {
+      const escaped = escapeHtml(txt || '');
+      return escaped.replace(/\r\n|\r|\n/g, '<br>');
+    };
+
     const mailOptions = {
       from: `"Crack Off Campus" <admin@crackoffcampus.com>`,
       to,
       subject,
       text,
-      html: html || text,
+      html: html || textToHtml(text),
       replyTo: replyTo || 'crackoffcampus63@gmail.com'
     };
 

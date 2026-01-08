@@ -6,8 +6,8 @@ function getEnv(name) {
 }
 
 function buildTwilioClient() {
-  const accountSid = getEnv('TWILIO_ACCOUNT_SID');
-  const authToken = getEnv('TWILIO_AUTH_TOKEN');
+  const accountSid = "AC4ed064d41d9cdbcdaf5cbb297a843666";
+  const authToken = "6ece784bdd5743dd2c26e736a5fd6148";
   if (!accountSid || !authToken) return null;
   try {
     // Lazy require to avoid hard dependency if not configured
@@ -78,24 +78,25 @@ async function fetchActivePlans() {
 }
 
 async function sendWhatsappOrEmail({ client, toPhone, toEmail, subject, text }) {
-  // Prefer WhatsApp if phone present and Twilio configured
-  if (client && toPhone) {
-    try {
-      const msg = await client.messages.create({
-        from: TWILIO_WHATSAPP_FROM,
-        to: `whatsapp:${toPhone.startsWith('+') ? toPhone : `+${toPhone}`}`,
-        body: text,
-      });
-      return { success: true, via: 'whatsapp', sid: msg.sid };
-    } catch (err) {
-      // Fallback to email
-    }
+  // Only use Twilio WhatsApp for sending. Do not fallback to email.
+  if (!client) {
+    return { success: false, via: null, error: 'Twilio client not configured (missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN)' };
   }
-  if (toEmail) {
-    const result = await sendEmail({ to: toEmail, subject, text });
-    return { success: !!result.success, via: 'email' };
+  if (!toPhone) {
+    return { success: false, via: null, error: 'Missing recipient phone number' };
   }
-  return { success: false };
+  try {
+    const toNumber = toPhone.startsWith('+') ? toPhone : `+${toPhone}`;
+    const msg = await client.messages.create({
+      from: TWILIO_WHATSAPP_FROM,
+      to: `whatsapp:${toNumber}`,
+      body: text,
+    });
+    return { success: true, via: 'whatsapp', sid: msg.sid };
+  } catch (err) {
+    console.error('Twilio send error:', err && err.message ? err.message : err);
+    return { success: false, via: 'whatsapp', error: err && err.message ? err.message : String(err) };
+  }
 }
 
 async function alertUser(req, res) {
@@ -103,6 +104,7 @@ async function alertUser(req, res) {
     const client = buildTwilioClient();
     const items = await fetchActivePlans();
     let alertsSent = 0;
+    const expiringUsers = [];
 
     for (const r of items) {
       const start = r.created_at ? new Date(r.created_at) : null;
@@ -111,23 +113,51 @@ async function alertUser(req, res) {
       const expiry = addMonths(start, 3);
       const planName = planDisplayName(plan);
 
-      let text;
-      if (isOneDayBefore(expiry)) {
-        text = `Hi ${r.full_name || 'User'},\n\nYour ${planName} is gonna expire tomorrow. Please renew your subscription at Crack Off-Campus.\n\nRegards,\nTeam Crack Off-Campus`;
-      } else if (isToday(expiry)) {
-        text = `Hi ${r.full_name || 'User'},\n\nYour ${planName} is gonna expire today. Please renew your subscription at Crack Off-Campus.\n\nRegards,\nTeam Crack Off-Campus`;
-      } else {
-        continue;
+      // compute human-readable time left for every user
+      const now = new Date();
+      const msLeft = expiry.getTime() - now.getTime();
+      const formatTimeLeft = (ms) => {
+        if (ms <= 0) return 'expired';
+        const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+        const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+        const mins = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+        const parts = [];
+        if (days) parts.push(`${days} day${days > 1 ? 's' : ''}`);
+        if (hours) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+        if (!days && mins) parts.push(`${mins} minute${mins > 1 ? 's' : ''}`);
+        return parts.join(' ') || 'less than a minute';
+      };
+
+      const userObj = {
+        userId: r.user_id,
+        fullName: r.full_name || null,
+        plan: planName,
+        expiresAt: expiry.toISOString(),
+        timeLeftMs: msLeft,
+        timeLeft: formatTimeLeft(msLeft),
+        alertSent: false,
+        alertVia: null,
+      };
+
+      // Only send alerts if expiring today or tomorrow
+      if (isOneDayBefore(expiry) || isToday(expiry)) {
+        const text = isOneDayBefore(expiry)
+          ? `Hi ${r.full_name || 'User'},\n\nYour ${planName} is gonna expire tomorrow. Please renew your subscription at Crack Off-Campus.\n\nRegards,\n\nTeam Crack Off-Campus`
+          : `Hi ${r.full_name || 'User'},\n\nYour ${planName} is gonna expire today. Please renew your subscription at Crack Off-Campus.\n\nRegards,\n\nTeam Crack Off-Campus`;
+
+        const subject = `Your ${planName} plan is expiring`;
+        const toPhone = r.phone_number || null;
+        const toEmail = r.user_email || null;
+        const result = await sendWhatsappOrEmail({ client, toPhone, toEmail, subject, text });
+        if (result.success) alertsSent++;
+        userObj.alertSent = !!result.success;
+        userObj.alertVia = result.via || null;
       }
 
-      const subject = `Your ${planName} plan is expiring`;
-      const toPhone = r.phone_number || null;
-      const toEmail = r.user_email || null;
-      const result = await sendWhatsappOrEmail({ client, toPhone, toEmail, subject, text });
-      if (result.success) alertsSent++;
+      expiringUsers.push(userObj);
     }
 
-    return res.json({ success: true, alertsSent });
+    return res.json({ success: true, alertsSent, expiringUsers });
   } catch (e) {
     console.error('cron.alertUser error', e);
     return res.status(500).json({ error: 'Internal server error' });
@@ -159,4 +189,30 @@ async function endUser(req, res) {
   }
 }
 
-module.exports = { alertUser, endUser };
+async function testWhatsapp(req, res) {
+  try {
+    const client = buildTwilioClient();
+    if (!client) return res.status(500).json({ success: false, error: 'Twilio client not configured' });
+
+    const body = req.body || {};
+    const toPhone = body.toPhone || body.to || req.query.toPhone || req.query.to;
+    const text = body.text || req.query.text;
+
+    if (!toPhone) return res.status(400).json({ success: false, error: 'toPhone is required (e.g. { toPhone: "+9199...", text: "message" })' });
+    if (!text) return res.status(400).json({ success: false, error: 'text is required' });
+
+    const toNumber = toPhone.startsWith('+') ? toPhone : `+${toPhone}`;
+    const msg = await client.messages.create({
+      from: TWILIO_WHATSAPP_FROM,
+      to: `whatsapp:${toNumber}`,
+      body: text,
+    });
+
+    return res.json({ success: true, sid: msg.sid, via: 'whatsapp' });
+  } catch (e) {
+    console.error('cron.testWhatsapp error', e && e.message ? e.message : e);
+    return res.status(500).json({ success: false, error: e && e.message ? e.message : String(e) });
+  }
+}
+
+module.exports = { alertUser, endUser, testWhatsapp };
