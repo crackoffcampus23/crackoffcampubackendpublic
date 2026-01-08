@@ -6,8 +6,8 @@ function getEnv(name) {
 }
 
 function buildTwilioClient() {
-  const accountSid = "AC4ed064d41d9cdbcdaf5cbb297a843666";
-  const authToken = "6ece784bdd5743dd2c26e736a5fd6148";
+  const accountSid = getEnv('TWILIO_ACCOUNT_SID');
+  const authToken = getEnv('TWILIO_AUTH_TOKEN');
   if (!accountSid || !authToken) return null;
   try {
     // Lazy require to avoid hard dependency if not configured
