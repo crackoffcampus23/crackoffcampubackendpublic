@@ -19,7 +19,20 @@ function buildTwilioClient() {
   }
 }
 
-const TWILIO_WHATSAPP_FROM = 'whatsapp:+14155238886';
+function getWhatsappFrom() {
+  const raw = getEnv('TWILIO_WHATSAPP_FROM') || 'whatsapp:+15558343496';
+  const withPlus = raw.startsWith('+') ? raw : `+${raw}`;
+  return raw.startsWith('whatsapp:') ? raw : `whatsapp:${withPlus}`;
+}
+
+function formatTwilioError(err) {
+  const msg = err && err.message ? err.message : String(err);
+  // Twilio 401 unauthorized / 20003 error code often has message "Authenticate"
+  if ((err && (err.status === 401 || err.code === 20003)) || /Authenticate/i.test(msg)) {
+    return 'Authenticate: verify TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN and WhatsApp sender configuration';
+  }
+  return msg;
+}
 
 function addMonths(date, months) {
   const d = new Date(date);
@@ -88,14 +101,24 @@ async function sendWhatsappOrEmail({ client, toPhone, toEmail, subject, text }) 
   try {
     const toNumber = toPhone.startsWith('+') ? toPhone : `+${toPhone}`;
     const msg = await client.messages.create({
-      from: TWILIO_WHATSAPP_FROM,
+      from: getWhatsappFrom(),
       to: `whatsapp:${toNumber}`,
       body: text,
     });
     return { success: true, via: 'whatsapp', sid: msg.sid };
   } catch (err) {
-    console.error('Twilio send error:', err && err.message ? err.message : err);
-    return { success: false, via: 'whatsapp', error: err && err.message ? err.message : String(err) };
+    const emsg = formatTwilioError(err);
+    console.error('Twilio send error:', emsg);
+    return {
+      success: false,
+      via: 'whatsapp',
+      error: emsg,
+      details: {
+        code: err && err.code ? err.code : null,
+        status: err && err.status ? err.status : null,
+        moreInfo: err && err.moreInfo ? err.moreInfo : null,
+      }
+    };
   }
 }
 
@@ -203,16 +226,98 @@ async function testWhatsapp(req, res) {
 
     const toNumber = toPhone.startsWith('+') ? toPhone : `+${toPhone}`;
     const msg = await client.messages.create({
-      from: TWILIO_WHATSAPP_FROM,
+      from: getWhatsappFrom(),
       to: `whatsapp:${toNumber}`,
       body: text,
     });
 
     return res.json({ success: true, sid: msg.sid, via: 'whatsapp' });
   } catch (e) {
-    console.error('cron.testWhatsapp error', e && e.message ? e.message : e);
-    return res.status(500).json({ success: false, error: e && e.message ? e.message : String(e) });
+    const emsg = formatTwilioError(e);
+    console.error('cron.testWhatsapp error', emsg);
+    return res.status(500).json({ success: false, error: emsg });
   }
 }
 
-module.exports = { alertUser, endUser, testWhatsapp };
+async function messageStatus(req, res) {
+  try {
+    const client = buildTwilioClient();
+    if (!client) return res.status(500).json({ success: false, error: 'Twilio client not configured' });
+
+    const sid = (req.query.sid || (req.body && req.body.sid) || '').trim();
+    if (!sid) return res.status(400).json({ success: false, error: 'sid is required' });
+
+    const msg = await client.messages(sid).fetch();
+    // Return key delivery fields
+    return res.json({
+      success: true,
+      sid: msg.sid,
+      status: msg.status,
+      to: msg.to,
+      from: msg.from,
+      errorCode: msg.errorCode || null,
+      numMedia: msg.numMedia,
+      dateCreated: msg.dateCreated,
+      dateUpdated: msg.dateUpdated,
+    });
+  } catch (e) {
+    const emsg = formatTwilioError(e);
+    console.error('cron.messageStatus error', emsg);
+    return res.status(500).json({ success: false, error: emsg });
+  }
+}
+
+async function sendWhatsappTemplate(req, res) {
+  try {
+    const client = buildTwilioClient();
+    if (!client) return res.status(500).json({ success: false, error: 'Twilio client not configured' });
+
+    const body = req.body || {};
+    const toPhone = body.toPhone || body.to || req.query.toPhone || req.query.to;
+    const contentSid = body.contentSid || req.query.contentSid;
+    const variables = body.variables || body.contentVariables || req.query.variables;
+
+    if (!toPhone) return res.status(400).json({ success: false, error: 'toPhone is required' });
+    if (!contentSid) return res.status(400).json({ success: false, error: 'contentSid is required (Twilio Content template SID)' });
+
+    const toNumber = toPhone.startsWith('+') ? toPhone : `+${toPhone}`;
+    // Twilio Content API expects contentVariables as a JSON string
+    let contentVariables;
+    if (typeof variables === 'string') {
+      // If string, validate it is JSON; otherwise wrap as empty
+      try {
+        JSON.parse(variables);
+        contentVariables = variables;
+      } catch (_) {
+        contentVariables = JSON.stringify({});
+      }
+    } else if (variables && typeof variables === 'object') {
+      contentVariables = JSON.stringify(variables);
+    } else {
+      contentVariables = JSON.stringify({});
+    }
+
+    const msg = await client.messages.create({
+      from: getWhatsappFrom(),
+      to: `whatsapp:${toNumber}`,
+      contentSid,
+      contentVariables,
+    });
+
+    return res.json({ success: true, sid: msg.sid, via: 'whatsapp', usingTemplate: true });
+  } catch (e) {
+    const emsg = formatTwilioError(e);
+    console.error('cron.sendWhatsappTemplate error', emsg);
+    return res.status(500).json({
+      success: false,
+      error: emsg,
+      details: {
+        code: e && e.code ? e.code : null,
+        status: e && e.status ? e.status : null,
+        moreInfo: e && e.moreInfo ? e.moreInfo : null,
+      }
+    });
+  }
+}
+
+module.exports = { alertUser, endUser, testWhatsapp, messageStatus, sendWhatsappTemplate };
