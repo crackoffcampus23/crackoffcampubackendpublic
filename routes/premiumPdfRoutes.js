@@ -3,14 +3,41 @@ const auth = require('../middleware/auth');
 const { requireAdmin } = require('../middleware/roles');
 const { getS3, getBucket, getPublicUrl } = require('../utils/r2');
 const { ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
+const { ensureDefaultRow, getByUserId } = require('../models/userDetailsModel');
 
 const router = express.Router();
 
 const PREFIX = 'premiumpdf/';
 
-// GET /getpremiumpdf - Public: list objects under premiumpdf/ with public URLs
+// Allowed user types for accessing premium PDF
+const PREMIUM_ACCESS_TYPES = [
+  'basic',
+  'standard',
+  'booster',
+  'premiumjobs',
+  'jobs',
+  'jobspremium',
+];
+
+// GET /getpremiumpdf - gated by userType: returns 0 for free users, items payload for premium users
 router.get('/getpremiumpdf', async (req, res) => {
   try {
+    const userId = req.query.userId || (req.body && req.body.userId);
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Ensure user_details row exists and fetch user type
+    await ensureDefaultRow(userId);
+    const details = await getByUserId(userId);
+    const userType = (details && details.user_type ? String(details.user_type) : 'free').toLowerCase();
+
+    if (!PREMIUM_ACCESS_TYPES.includes(userType)) {
+      // Explicitly block free or unknown types with a simple numeric 0 payload
+      return res.json(0);
+    }
+
     const s3 = getS3();
     const bucket = getBucket();
     if (!s3 || !bucket) {

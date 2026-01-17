@@ -1,6 +1,6 @@
-# Crack Off Campus Backend
+# Crack Off-Campus Backend
 
-This repository contains the backend server for **Crack Off Campus**, built as a monolithic Node.js/Express application backed by **PostgreSQL** and integrated with **Cloudflare R2 (S3-compatible)** object storage, **Razorpay** for payments (via custom controllers), and **Nodemailer** for transactional email.
+This repository contains the backend server for **Crack Off-Campus**, built as a monolithic Node.js/Express application backed by **PostgreSQL** and integrated with **Cloudflare R2 (S3-compatible)** object storage, **Razorpay** for payments (via custom controllers), and **Nodemailer** for transactional email.
 
 The server exposes a JSON-based HTTP API consumed by the public app, CMS/admin panel, and automation scripts.
 
@@ -28,7 +28,6 @@ The server exposes a JSON-based HTTP API consumed by the public app, CMS/admin p
 The backend follows a typical **Express MVC-style** layout:
 
 - **Entry point**: [app.js](app.js)
-
   - Configures CORS, body parsers, rate limiting, and error handling.
   - Initializes the PostgreSQL pool and runs a test query.
   - Ensures notification tables exist via `notificationModel.init()`.
@@ -36,13 +35,11 @@ The backend follows a typical **Express MVC-style** layout:
   - Binds all feature route modules under `/` (or `/notifications`).
 
 - **Routing layer**: [routes/](routes)
-
   - Each feature has its own `*Routes.js` file (e.g. `jobsRoutes.js`, `servicesRoutes.js`).
   - Routes use modular `express.Router` instances, mounted in `app.js`.
   - Per-route middleware enforces authentication and roles.
 
 - **Controller layer**: [controllers/](controllers)
-
   - Controllers implement business logic for each feature area:
     - Authentication and CMS admin management (`authController`)
     - Jobs, services, resources, interview kits, project ideas, learning resources, blogs, events, hackathons
@@ -53,7 +50,6 @@ The backend follows a typical **Express MVC-style** layout:
   - Many controllers use a shared `crudFactory` to implement common patterns.
 
 - **Data access layer**: [models/](models)
-
   - Each domain object has a corresponding `*Model.js` (e.g. `jobsModel.js`, `servicesModel.js`).
   - Models encapsulate SQL queries and table-specific helpers using the shared PG pool from `utils/db.js`.
   - Examples:
@@ -63,7 +59,6 @@ The backend follows a typical **Express MVC-style** layout:
     - `notificationModel` – notification tables and queries.
 
 - **Middleware**: [middleware/](middleware)
-
   - `auth.js` – verifies JWT from `Authorization: Bearer <token>` header and populates `req.user`.
   - `roles.js` – role-based guards:
     - `requireAdmin` – only admins.
@@ -71,7 +66,6 @@ The backend follows a typical **Express MVC-style** layout:
     - `requireAdminOrSelf(paramKey)` – admin or same user as URL param.
 
 - **Utilities**: [utils/](utils)
-
   - `db.js` – PostgreSQL pool initialization and `init()` helper.
   - `emailService.js` – Nodemailer configuration and high-level email helpers.
   - `r2.js` – R2/S3 client factory, bucket name resolution, and URL helpers.
@@ -110,43 +104,36 @@ The backend follows a typical **Express MVC-style** layout:
 High-level domains covered by this backend:
 
 - **Authentication & CMS Admin**
-
   - User signup/login and password reset flows.
   - CMS-specific admin authentication and admin management.
   - Token verification endpoints for clients.
 
 - **User Management**
-
   - Listing users (admin only), fetching user by id.
   - User details profile CRUD with `admin or self` semantics.
   - Account removal for self or by admin.
 
 - **Jobs & Services**
-
   - Admin CRUD for jobs and services.
   - Public listing endpoints for users.
   - Additional flags such as `most popular` for services.
 
 - **Premium Resources & Payments**
-
   - Resources and interview kits with access control based on successful Razorpay payments.
   - Payment verification, order creation, and subscription history.
   - Separate verification endpoints for services, resources, and kits.
 
 - **Content Modules**
-
   - Courses, blogs, events, hackathons, project ideas, learning resources.
   - Each module has admin CRUD plus public listing endpoints.
 
 - **Media & Banners**
-
   - File uploads via `multer` directly to R2.
   - Image gallery listing and deletion.
   - App-wide banner and top-banner configuration.
   - Premium PDFs listing and bulk deletion.
 
 - **Feedback & Notifications**
-
   - Public feedback submission and admin review.
   - Per-user notifications with unread counts and mark-read operations.
 
@@ -211,3 +198,67 @@ Refer to those scripts for how they hit the API and expected responses.
 For a detailed, route-by-route description of every endpoint, including auth requirements, request payloads, and typical responses, see:
 
 - [api.md](api.md)
+
+---
+
+## WhatsApp Test Endpoint
+
+The cron module exposes a simple WhatsApp test sender at `/cron/test-whatsapp`.
+
+- Configure Twilio credentials in your environment:
+  - `TWILIO_ACCOUNT_SID` – your Twilio Account SID
+  - `TWILIO_AUTH_TOKEN` – your Twilio Auth Token
+  - `TWILIO_WHATSAPP_FROM` – your approved WhatsApp sender number (e.g. `+14155238886` for Twilio sandbox)
+
+- Twilio sandbox note:
+  - Join the sandbox by sending the provided join code to `+14155238886` from your phone (see Twilio console → WhatsApp → Sandbox).
+  - Use `TWILIO_WHATSAPP_FROM=+14155238886` for sandbox.
+
+- Test with curl:
+
+```bash
+curl -X POST http://localhost:5000/cron/test-whatsapp \
+  -H "Content-Type: application/json" \
+  -d '{"toPhone": "+918176837431", "text": "Test message from Crack Off-Campus"}'
+```
+
+- Common error:
+  - `{"success": false, "error": "Authenticate"}` → Verify `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` and that `TWILIO_WHATSAPP_FROM` is correctly set.
+
+### Delivery status
+
+- After sending, you can check delivery status using:
+
+```bash
+curl "http://localhost:5000/cron/message-status?sid=SMXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+```
+
+- Typical statuses: `queued`, `sent`, `delivered`, `undelivered`, `failed`.
+- If `failed/undelivered`, check `errorCode` in the response and Twilio console.
+
+### Session vs Template
+
+- WhatsApp requires either:
+  - an active 24-hour session (the user has messaged your business), or
+  - a pre-approved message template to initiate conversations.
+- If recipients haven’t messaged you first, use a template for the first message, or ask them to send a message to open a session.
+
+### Send a template message
+
+- Create a WhatsApp template in Twilio Content (Console → Content → Templates). Note its `SID`.
+- Send it with variables using the new endpoint:
+
+```bash
+curl -X POST http://localhost:5000/cron/send-template \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toPhone": "+917991423042",
+    "contentSid": "HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "variables": { "1": "Crack Off-Campus", "2": "Your code is 123456" }
+  }'
+```
+
+- Notes:
+  - `contentSid`: Twilio Content template SID (starts with `HX...`).
+  - `variables`: a JSON object; keys should match the template variable placeholders.
+  - This is the compliant way to initiate conversations when no 24‑hour session exists.

@@ -45,7 +45,7 @@ const sendEmail = async ({ to, subject, text, html, replyTo }) => {
     };
 
     const mailOptions = {
-      from: `"Crack Off Campus" <admin@crackoffcampus.com>`,
+      from: `"Crack Off-Campus" <admin@crackoffcampus.com>`,
       to,
       subject,
       text,
@@ -71,10 +71,10 @@ const sendEmail = async ({ to, subject, text, html, replyTo }) => {
 
 // Predefined email templates
 const sendWelcomeEmail = async (userEmail, userName) => {
-  const subject = 'Welcome to Crack Off Campus!';
+  const subject = 'Welcome to Crack Off-Campus!';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #333;">Welcome to Crack Off Campus, ${userName}!</h2>
+      <h2 style="color: #333;">Welcome to Crack Off-Campus, ${userName}!</h2>
       <p>Thank you for joining our platform. We're excited to help you on your career journey.</p>
       <p>Here's what you can do:</p>
       <ul>
@@ -84,7 +84,7 @@ const sendWelcomeEmail = async (userEmail, userName) => {
         <li>Read testimonials from successful candidates</li>
       </ul>
       <p>If you have any questions, feel free to reach out to us.</p>
-      <p>Best regards,<br>The Crack Off Campus Team</p>
+      <p>Best regards,<br>The Crack Off-Campus Team</p>
     </div>
   `;
 
@@ -96,15 +96,15 @@ const sendWelcomeEmail = async (userEmail, userName) => {
 };
 
 const sendPasswordResetEmail = async (userEmail, resetToken) => {
-  const subject = 'Password Reset Request - Crack Off Campus';
+  const subject = 'Password Reset Request - Crack Off-Campus';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #333;">Password Reset Request</h2>
-      <p>You requested a password reset for your Crack Off Campus account.</p>
+      <p>You requested a password reset for your Crack Off-Campus account.</p>
       <p>Your reset token is: <strong>${resetToken}</strong></p>
       <p>This token will expire in 1 hour for security reasons.</p>
       <p>If you didn't request this reset, please ignore this email.</p>
-      <p>Best regards,<br>The Crack Off Campus Team</p>
+      <p>Best regards,<br>The Crack Off-Campus Team</p>
     </div>
   `;
 
@@ -121,8 +121,8 @@ const sendNotificationEmail = async (userEmail, title, message) => {
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #333;">${title}</h2>
       <p>${message}</p>
-      <p>Thank you for using Crack Off Campus!</p>
-      <p>Best regards,<br>The Crack Off Campus Team</p>
+      <p>Thank you for using Crack Off-Campus!</p>
+      <p>Best regards,<br>The Crack Off-Campus Team</p>
     </div>
   `;
 
@@ -134,17 +134,17 @@ const sendNotificationEmail = async (userEmail, title, message) => {
 };
 
 const sendOTPEmail = async (userEmail, otp, userName = 'User') => {
-  const subject = 'Password Reset OTP - Crack Off Campus';
+  const subject = 'Password Reset OTP - Crack Off-Campus';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
       <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #333; margin: 0;">Crack Off Campus</h1>
+        <h1 style="color: #333; margin: 0;">Crack Off-Campus</h1>
         <p style="color: #666; margin: 5px 0;">Password Reset Request</p>
       </div>
       
       <div style="background-color: #f8f9fa; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
         <h2 style="color: #333; margin-top: 0;">Hello ${userName},</h2>
-        <p style="margin-bottom: 15px;">You requested a password reset for your Crack Off Campus account.</p>
+        <p style="margin-bottom: 15px;">You requested a password reset for your Crack Off-Campus account.</p>
         
         <div style="background-color: #fff; padding: 15px; border-radius: 4px; text-align: center; margin: 20px 0;">
           <p style="margin: 0; color: #666; font-size: 14px;">Your OTP Code:</p>
@@ -165,7 +165,7 @@ const sendOTPEmail = async (userEmail, otp, userName = 'User') => {
       
       <div style="text-align: center; padding-top: 20px; border-top: 1px solid #eee;">
         <p style="color: #999; font-size: 12px; margin: 0;">
-          This is an automated message from Crack Off Campus.<br>
+          This is an automated message from Crack Off-Campus.<br>
           Please do not reply to this email.
         </p>
       </div>

@@ -1,6 +1,6 @@
-# Crack Off Campus Backend API
+# Crack Off-Campus Backend API
 
-This document describes the HTTP API exposed by the Crack Off Campus backend. All routes are mounted at the server root (e.g. `https://api.crackoffcampus.com/`), unless otherwise noted.
+This document describes the HTTP API exposed by the Crack Off-Campus backend. All routes are mounted at the server root (e.g. `https://api.crackoffcampus.com/`), unless otherwise noted.
 
 ## Conventions
 
