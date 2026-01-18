@@ -1,6 +1,7 @@
 const resources = require('../models/resourcesModel');
 const { makeController } = require('./crudFactory');
 const { upsertForUserResource, getForUser } = require('../models/userResourcesModel');
+const { ensureDefaultRow, getByUserId } = require('../models/userDetailsModel');
 const crypto = require('crypto');
 
 const mapping = {
@@ -17,6 +18,33 @@ const mapping = {
 };
 
 const base = makeController(resources, 'resourceid', mapping);
+
+const BASIC_FREE_RESOURCE_IDS = new Set([
+  'yj2WDQTEdeRM', // Cover Letter Template
+  'YJV8ayf93skB', // Cold Email Template
+  'htQseLUy5Ydi' // Referral Template
+]);
+
+const STANDARD_BOOSTER_EXTRA_RESOURCE_IDS = new Set([
+  'xxorRYrbG3qG', // ATS-Friendly Resume Template
+  'egEoxDPmHezg' // 9000+ Verified HR & Recruiter Emails
+]);
+
+function userHasSubscriptionAccess(userType, resourceId) {
+  if (!userType) return false;
+  const normalized = String(userType).toLowerCase();
+
+  if (normalized === 'basic') {
+    return BASIC_FREE_RESOURCE_IDS.has(resourceId);
+  }
+
+  if (normalized === 'standard' || normalized === 'booster') {
+    if (BASIC_FREE_RESOURCE_IDS.has(resourceId)) return true;
+    if (STANDARD_BOOSTER_EXTRA_RESOURCE_IDS.has(resourceId)) return true;
+  }
+
+  return false;
+}
 
 function sanitize(row) {
   if (!row) return null;
@@ -111,11 +139,32 @@ async function getResourceAccess(req, res) {
     const { resourceid } = req.params;
     if (!resourceid) return res.status(400).json({ error: 'resourceid is required' });
 
-    const row = await getForUser(authUserId, resourceid);
-    if (!row) {
+    // Always look up the resource so we can serve the download link when access is granted.
+    const resource = await resources.get(resourceid);
+    if (!resource || !resource.download_link) {
       return res.json({ hasAccess: false });
     }
-     const resource = await resources.get(resourceid);
+
+    // Check if the user already has access via a previous purchase
+    const row = await getForUser(authUserId, resourceid);
+
+    let hasSubscriptionAccess = false;
+    try {
+      // Ensure user_details row exists and fetch user type
+      await ensureDefaultRow(authUserId);
+      const details = await getByUserId(authUserId);
+      const userType = details && details.user_type ? details.user_type : 'free';
+      hasSubscriptionAccess = userHasSubscriptionAccess(userType, resourceid);
+    } catch (detailsErr) {
+      console.error('getResourceAccess user details error', detailsErr);
+    }
+
+    // If neither a purchase record nor subscription-based entitlement exists, deny access
+    if (!row && !hasSubscriptionAccess) {
+      return res.json({ hasAccess: false });
+    }
+
+    // At this point, user either purchased the resource or is entitled via subscription plan
     return res.json({ hasAccess: true, signedUrl: resource.download_link });
   } catch (e) {
     console.error('getResourceAccess error', e);
