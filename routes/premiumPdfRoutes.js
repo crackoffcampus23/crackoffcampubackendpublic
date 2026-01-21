@@ -86,7 +86,7 @@ router.get('/getpremiumpdf', async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
-
+//trying to see automation
 // DELETE /premiumpdf - Admin: bulk delete all objects under premiumpdf/
 router.delete('/premiumpdf', auth, requireAdmin, async (req, res) => {
   try {
