@@ -18,6 +18,31 @@ const PREMIUM_ACCESS_TYPES = [
   'jobs',
   'jobspremium',
 ];
+router.get('/admingetpremiumpdf', async (req, res) => {
+  try {
+    const s3 = getS3();
+    const bucket = getBucket();
+    if (!s3 || !bucket) {
+      return res.status(500).json({ error: 'R2 not configured' });
+    }
+
+    const out = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: PREFIX }));
+    const contents = out.Contents || [];
+    const items = contents
+      .filter(obj => obj.Key && obj.Key !== PREFIX)
+      .map(obj => ({
+        key: obj.Key,
+        url: getPublicUrl(obj.Key),
+        size: obj.Size,
+        lastModified: obj.LastModified,
+      }));
+
+    return res.json({ items });
+  } catch (e) {
+    console.error('GET /getpremiumpdf error', e);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // GET /getpremiumpdf - gated by userType: returns 0 for free users, items payload for premium users
 router.get('/getpremiumpdf', async (req, res) => {

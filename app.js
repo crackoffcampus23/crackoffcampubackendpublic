@@ -145,13 +145,11 @@ async function start() {
 		await init();
 		const { rows } = await pool.query('SELECT now() AS now');
 		console.log('Postgres connected. Server time:', rows[0].now);
-		// Ensure notification tables exist
 		await notificationModel.init().then(() => {
 			console.log('Notification tables ready');
 		}).catch((e) => {
 			console.error('Failed to init notification tables:', e);
 		});
-		// Initialize Cloudflare R2 (optional)
 		await initR2();
 		app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 	} catch (e) {
