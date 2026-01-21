@@ -1,5 +1,6 @@
 const axios = require('axios');
 const crypto = require('crypto');
+const { pool } = require('../utils/db');
 const { upsertByPaymentId, listByUserId } = require('../models/paymentsModel');
 const { setPlanType, getByUserId } = require('../models/userDetailsModel');
 const { listAllForUser: listUserKits } = require('../models/userInterviewKitsModel');
@@ -186,7 +187,85 @@ async function getUserSubscriptions(req, res) {
   }
 }
 
-module.exports = { verifyPayment, getUserSubscriptions };
+// Admin: get all subscriptions/payments across all users
+async function getAllSubscriptions(req, res) {
+  try {
+    // payments table (plan subscriptions, services, etc.)
+    const paymentsPromise = pool.query('SELECT * FROM payments ORDER BY created_at DESC');
+
+    // interview kits owned by users
+    const kitsPromise = pool.query(
+      `SELECT uik.*, ipk.kit_name
+       FROM user_interview_kits uik
+       JOIN interview_preperation_kit ipk ON uik.kit_id = ipk.kit_id`
+    );
+
+    // resources owned by users
+    const resourcesPromise = pool.query(
+      `SELECT ur.*, r.resource_name
+       FROM user_resources ur
+       JOIN resources r ON ur.resource_id = r.resource_id`
+    );
+
+    const [paymentsResult, kitsResult, resourcesResult] = await Promise.all([
+      paymentsPromise,
+      kitsPromise,
+      resourcesPromise
+    ]);
+
+    const payments = paymentsResult.rows || [];
+    const kits = kitsResult.rows || [];
+    const resources = resourcesResult.rows || [];
+
+    const paymentSubs = payments.map(p => ({
+      id: p.id,
+      userId: p.user_id,
+      type: p.type,
+      planType: p.plan_type,
+      verified: p.verified,
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+      source: 'payment'
+    }));
+
+    const kitSubs = kits.map(k => ({
+      id: `kit_${k.kit_id}_${k.user_id}`,
+      userId: k.user_id,
+      type: 'Interview kit',
+      planType: k.kit_name,
+      verified: true,
+      createdAt: k.created_at,
+      updatedAt: k.updated_at,
+      kitId: k.kit_id,
+      kitUrl: k.kit_url,
+      source: 'kit'
+    }));
+
+    const resourceSubs = resources.map(r => ({
+      id: `res_${r.resource_id}_${r.user_id}`,
+      userId: r.user_id,
+      type: 'Resource',
+      planType: r.resource_name,
+      verified: true,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      resourceId: r.resource_id,
+      downloadLink: r.signed_url,
+      source: 'resource'
+    }));
+
+    const all = [...paymentSubs, ...kitSubs, ...resourceSubs];
+
+    all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return res.json({ items: all });
+  } catch (e) {
+    console.error('getAllSubscriptions error', e);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = { verifyPayment, getUserSubscriptions, getAllSubscriptions };
 // --- Razorpay helper endpoints ---
 
 async function getRazorpayConfig(req, res) {
@@ -244,3 +323,4 @@ async function createRazorpayOrder(req, res) {
 
 module.exports.getRazorpayConfig = getRazorpayConfig;
 module.exports.createRazorpayOrder = createRazorpayOrder;
+module.exports.getAllSubscriptions = getAllSubscriptions;
