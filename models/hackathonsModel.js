@@ -3,18 +3,33 @@ const { generateId } = require('../utils/idGenerator');
 
 const table = 'hackathons';
 
-function normalizeInput(data) {
+function normalizeInput(data, isUpdate = false) {
   const d = data || {};
+  const missing = isUpdate ? undefined : null;
   return {
-    hackathonName: d.hackathonName ?? d.HackathonName ?? null,
-    hackathonBannerImageUrl: d.hackathonBannerImageUrl ?? d.HackathonBannerImageUrl ?? null,
-    hackathonShortDescription: d.hackathonShortDescription ?? d.HackathonShortDescription ?? null,
-    hackathonDate: d.hackathonDate ?? d.HackathonDate ?? null,
-    hackathonRegistrationStart: d.hackathonRegistrationStart ?? d.HackathonRegistrationStart ?? null,
-    hackathonRegistrationEnd: d.hackathonRegistrationEnd ?? d.HackathonRegistrationEnd ?? null,
-    hackathonUrl: d.hackathonUrl ?? d.HackathonUrl ?? null,
-    closeRegistration: typeof d.closeRegistration === 'boolean' ? d.closeRegistration : (d.closeRegistration === 'true' ? true : (d.closeRegistration === 'false' ? false : null)),
-    published: typeof d.published === 'boolean' ? d.published : (d.published === 'true' ? true : (d.published === 'false' ? false : null)),
+    hackathonName: d.hackathonName ?? d.HackathonName ?? missing,
+    hackathonBannerImageUrl: d.hackathonBannerImageUrl ?? d.HackathonBannerImageUrl ?? missing,
+    hackathonShortDescription: d.hackathonShortDescription ?? d.HackathonShortDescription ?? missing,
+    hackathonDate: d.hackathonDate ?? d.HackathonDate ?? missing,
+    hackathonRegistrationStart: d.hackathonRegistrationStart ?? d.HackathonRegistrationStart ?? missing,
+    hackathonRegistrationEnd: d.hackathonRegistrationEnd ?? d.HackathonRegistrationEnd ?? missing,
+    hackathonUrl: d.hackathonUrl ?? d.HackathonUrl ?? missing,
+    closeRegistration:
+      typeof d.closeRegistration === 'boolean'
+        ? d.closeRegistration
+        : d.closeRegistration === 'true'
+          ? true
+          : d.closeRegistration === 'false'
+            ? false
+            : (isUpdate ? undefined : null),
+    published:
+      typeof d.published === 'boolean'
+        ? d.published
+        : d.published === 'true'
+          ? true
+          : d.published === 'false'
+            ? false
+            : (isUpdate ? undefined : null),
   };
 }
 
@@ -46,7 +61,7 @@ async function deleteById(id) {
 }
 
 async function updateById(id, patch) {
-  const n = normalizeInput(patch);
+  const n = normalizeInput(patch, true);
   const mapping = {
     hackathonName: 'hackathon_name',
     hackathonBannerImageUrl: 'hackathon_banner_image_url',

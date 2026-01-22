@@ -3,18 +3,33 @@ const { generateId } = require('../utils/idGenerator');
 
 const table = 'events';
 
-function normalizeInput(data) {
+function normalizeInput(data, isUpdate = false) {
   const d = data || {};
+  const missing = isUpdate ? undefined : null;
   return {
-    eventBannerImageUrl: d.eventBannerImageUrl ?? d.EventBannerImageUrl ?? null,
-    eventName: d.eventName ?? d.EventName ?? null,
-    eventDate: d.eventDate ?? d.EventDate ?? null,
-    eventShortDescription: d.eventShortDescription ?? d.EventShortDescription ?? null,
-    eventRegistrationStart: d.eventRegistrationStart ?? d.EventRegistrationStart ?? null,
-    eventRegistrationEnd: d.eventRegistrationEnd ?? d.EventRegistrationEnd ?? null,
-    eventUrl: d.eventUrl ?? d.EventUrl ?? null,
-    closeRegistration: typeof d.closeRegistration === 'boolean' ? d.closeRegistration : (d.closeRegistration === 'true' ? true : (d.closeRegistration === 'false' ? false : null)),
-    published: typeof d.published === 'boolean' ? d.published : (d.published === 'true' ? true : (d.published === 'false' ? false : null)),
+    eventBannerImageUrl: d.eventBannerImageUrl ?? d.EventBannerImageUrl ?? missing,
+    eventName: d.eventName ?? d.EventName ?? missing,
+    eventDate: d.eventDate ?? d.EventDate ?? missing,
+    eventShortDescription: d.eventShortDescription ?? d.EventShortDescription ?? missing,
+    eventRegistrationStart: d.eventRegistrationStart ?? d.EventRegistrationStart ?? missing,
+    eventRegistrationEnd: d.eventRegistrationEnd ?? d.EventRegistrationEnd ?? missing,
+    eventUrl: d.eventUrl ?? d.EventUrl ?? missing,
+    closeRegistration:
+      typeof d.closeRegistration === 'boolean'
+        ? d.closeRegistration
+        : d.closeRegistration === 'true'
+          ? true
+          : d.closeRegistration === 'false'
+            ? false
+            : (isUpdate ? undefined : null),
+    published:
+      typeof d.published === 'boolean'
+        ? d.published
+        : d.published === 'true'
+          ? true
+          : d.published === 'false'
+            ? false
+            : (isUpdate ? undefined : null),
   };
 }
 
@@ -46,7 +61,7 @@ async function deleteById(id) {
 }
 
 async function updateById(id, patch) {
-  const n = normalizeInput(patch);
+  const n = normalizeInput(patch, true);
   const mapping = {
     eventBannerImageUrl: 'event_banner_image_url',
     eventName: 'event_name',
