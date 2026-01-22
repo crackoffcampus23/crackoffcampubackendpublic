@@ -150,7 +150,7 @@ async function verifyService(req, res) {
       console.warn('User email send failed for service verification', e.message);
     }
     try {
-      await sendEmail({ to: 'crackoffcampus63@gmail.com', subject: adminSubject, text: adminText, html: adminHtml });
+      await sendEmail({ to: 'crackoffcampus21@gmail.com', subject: adminSubject, text: adminText, html: adminHtml });
     } catch (e) {
       console.warn('Admin email send failed for service verification', e.message);
     }
