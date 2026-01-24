@@ -50,7 +50,6 @@ const sendEmail = async ({ to, subject, text, html, replyTo }) => {
       subject,
       text,
       html: html || textToHtml(text),
-      replyTo: replyTo || 'crackoffcampus21@gmail.com'
     };
 
     const info = await transporter.sendMail(mailOptions);
